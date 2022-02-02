@@ -43,7 +43,7 @@ static void LCD_SLIDER_encoder_init(void);
 static void LCD_SLIDER_leds_init(void);
 static void LCD_SLIDER_buttons_init(void);
 static void LCD_SLIDER_short_press_button_callback_event(void);
-static void LCD_SLIDER_machine_state(void);
+static void LCD_SLIDER_state_machine(void);
 static void LCD_SLIDER_update_display(void);
 static void LCD_SLIDER_compute_slider_value(void);
 static bool_e slider_switch_press_event(void);
@@ -57,21 +57,22 @@ void LCD_SLIDER_complete_init(void){
 	slider_display = 0;
 	update_display = false;
 	LCD2X16_printf("LCD SLIDER - INITIALISED");
+	debug_printf("Appli initialised\n");
 };
 
 
 void LCD_SLIDER_lcd_init(void){
 	LCD2X16_init();
 	//Enable 5V boost converter to power screen
-	GPIO_configure(BOOST_ENABLE_PIN, GPIO_PIN_CNF_PULL_Pullup, TRUE);
+	GPIO_configure(BOOST_ENABLE_PIN, NRF_GPIO_PIN_PULLUP, 1);
 	GPIO_write(BOOST_ENABLE_PIN, 1);
 
 }
 
 void LCD_SLIDER_encoder_init(void){
-	GPIO_configure(LCD_A_SLIDER_PIN, GPIO_PIN_CNF_PULL_Pullup, FALSE);
-	GPIO_configure(LCD_B_SLIDER_PIN, GPIO_PIN_CNF_PULL_Pullup, FALSE);
-	GPIO_configure(LCD_SWITCH_SLIDER_PIN, GPIO_PIN_CNF_PULL_Pullup, FALSE);
+	GPIO_configure(LCD_A_SLIDER_PIN, NRF_GPIO_PIN_PULLUP, 0);
+	GPIO_configure(LCD_B_SLIDER_PIN, NRF_GPIO_PIN_PULLUP, 0);
+	GPIO_configure(LCD_SWITCH_SLIDER_PIN, NRF_GPIO_PIN_PULLUP, 0);
 	slider_A_last_state = GPIO_read(LCD_A_SLIDER_PIN);
 }
 
@@ -85,7 +86,7 @@ void LCD_SLIDER_buttons_init(void){
 }
 
 void LCD_SLIDER_short_press_button_callback_event(void){
-	printf("Network button has been shortly pressed");
+	debug_printf("Network button has been shortly pressed\n");
 	//RF_DIALOG_send_msg_id_to_object(OBJECT_BASE_STATION, PING, 0, NULL);
 
 }
@@ -93,15 +94,16 @@ void LCD_SLIDER_short_press_button_callback_event(void){
 /************************BACKGROUND FUNCTIONS****************************/
 
 void LCD_SLIDER_process_main(void){
-	LCD_SLIDER_machine_state();
+	LCD_SLIDER_state_machine();
 };
 
-void LCD_SLIDER_machine_state(void){
+void LCD_SLIDER_state_machine(void){
 	static mode_e state  = INIT;
 	switch(state){
 	case INIT :
 		LCD_SLIDER_complete_init();
 		state = RUN;
+		debug_printf("Switching to 'RUN' mode\n");
 		break;
 	case RUN :
 		LCD_SLIDER_compute_slider_value();
@@ -113,9 +115,9 @@ void LCD_SLIDER_machine_state(void){
 			//Send slider value to the server
 			//RF_DIALOG_send_msg_id_to_object(recipient_e obj_id,msg_id_e msg_id, uint8_t datasize, uint8_t * datas);
 			//RF_DIALOG_send_msg_id_to_object(OBJECT_BASE_STATION, PING, 0, NULL);
-			//RF_DIALOG_send_msg_id_to_basestation(PARAMETER_IS, 5, slider_display); ?//tab 5 données
-			printf("Switch button pressed\n");
-			printf("Slider value : %d", slider_display);
+			//RF_DIALOG_send_msg_id_to_basestation(PARAMETER_IS, 5, slider_display); ?//tab 5 donnï¿½es
+			debug_printf("Switch button pressed\n");
+			debug_printf("Slider value : %d\n", slider_display);
 		}
 		break;
 	case IDLE :
@@ -131,15 +133,18 @@ void LCD_SLIDER_update_display(void){
 
 void LCD_SLIDER_compute_slider_value(void){
 	slider_A = GPIO_read(LCD_A_SLIDER_PIN);
+	//debug_printf("Slider A %d\n", slider_A);
 	if(slider_A!=slider_A_last_state){
 		if(GPIO_read(LCD_B_SLIDER_PIN)!=slider_A){ //ie clockwise
 			slider_display++;
+			debug_printf("Slider ++ : %d\n", slider_display);
 		}
 		else{//ie counterclockwise
 			slider_display--;
+			debug_printf("Slider -- : %d\n", slider_display);
 		}
 		slider_A_last_state = slider_A;
-		update_display = true;
+		//update_display = true;
 	}
 }
 
@@ -160,15 +165,15 @@ void LCD_SLIDER_compute_slider_value(void){
  */
 bool_e slider_switch_press_event(void)
 {
-	static bool_e previous_button = false; //état précédent du bouton
+	static bool_e previous_button = false; //ï¿½tat prï¿½cï¿½dent du bouton
 	bool_e ret = false;
-	bool_e current_button; //état actuel du bouton
-	//bouton en logique inverse, d'où le '!'
+	bool_e current_button; //ï¿½tat actuel du bouton
+	//bouton en logique inverse, d'oï¿½ le '!'
 	current_button = GPIO_read(LCD_SWITCH_SLIDER_PIN);
-	//si le bouton est appuyé et ne l'était pas avant, champomy !
+	//si le bouton est appuyï¿½ et ne l'ï¿½tait pas avant, champomy !
 	if(current_button && !previous_button)
 	ret = true;
-	//on mémorise l'état actuel pour le prochain passage
+	//on mï¿½morise l'ï¿½tat actuel pour le prochain passage
 	previous_button = current_button;
 	return ret;
 }
