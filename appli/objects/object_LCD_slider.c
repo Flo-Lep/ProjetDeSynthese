@@ -22,6 +22,7 @@
 */
 #include "../bsp/lcd2x16/lcd2x16.h"
 #include "object_LCD_slider.h"
+#include "nrf_drv_gpiote.h"
 
 typedef enum
 	{
@@ -31,10 +32,10 @@ typedef enum
 	}mode_e;
 
 /************************PRIVATE VAR DECLARATIONS****************************/
-static volatile uint8_t slider_display;
-static bool_e update_display;
-static volatile uint8_t slider_A;
-static volatile uint8_t slider_A_last_state;
+static uint8_t slider_display;
+static volatile bool_e update_display;
+static volatile uint8_t slider_A; //Cette variable peut changer via une extit (on ne prend pas de raccourci)
+static uint8_t slider_A_last_state;
 
 /*******************PRIVATE FUNCTIONS PROTOTYPES***************************/
 static void LCD_SLIDER_complete_init(void);
@@ -44,11 +45,15 @@ static void LCD_SLIDER_leds_init(void);
 static void LCD_SLIDER_buttons_init(void);
 static void LCD_SLIDER_short_press_button_callback_event(void);
 static void LCD_SLIDER_state_machine(void);
+static void LCD_SLIDER_movement_callback_extit(void);
 static void LCD_SLIDER_update_display(void);
 static void LCD_SLIDER_compute_slider_value(void);
 static bool_e slider_switch_press_event(void);
 
 /************************INIT FUNCTIONS****************************/
+/*
+  * @brief Fonction initialisant l'objet via l'appel des sous fonctions d'init
+  */
 void LCD_SLIDER_complete_init(void){
 	LCD_SLIDER_lcd_init();
 	LCD_SLIDER_encoder_init();
@@ -56,11 +61,14 @@ void LCD_SLIDER_complete_init(void){
 	LCD_SLIDER_buttons_init();
 	slider_display = 0;
 	update_display = false;
+	slider_A_last_state = GPIO_read(LCD_A_SLIDER_PIN);
 	LCD2X16_printf("LCD SLIDER - INITIALISED");
 	debug_printf("Appli initialised\n");
 };
 
-
+/*
+  * @brief Fonction initialisant le LCD sur ses broches respectives. On en profite pour activer le convertisseur Boost 5V qui alimente le LCD.
+  */
 void LCD_SLIDER_lcd_init(void){
 	LCD2X16_init();
 	//Enable 5V boost converter to power screen
@@ -69,22 +77,40 @@ void LCD_SLIDER_lcd_init(void){
 
 }
 
+/*
+  * @brief Fonction initialisant l'encodeur digital (3 sorties : A, B et Switch) ainsi qu'une interruption ext pour l'incrementation du slider
+  */
 void LCD_SLIDER_encoder_init(void){
 	GPIO_configure(LCD_A_SLIDER_PIN, NRF_GPIO_PIN_PULLUP, 0);
 	GPIO_configure(LCD_B_SLIDER_PIN, NRF_GPIO_PIN_PULLUP, 0);
 	GPIO_configure(LCD_SWITCH_SLIDER_PIN, NRF_GPIO_PIN_PULLUP, 0);
-	slider_A_last_state = GPIO_read(LCD_A_SLIDER_PIN);
+	//Extit config
+	nrf_drv_gpiote_in_config_t in_config = GPIOTE_CONFIG_IN_SENSE_TOGGLE(true);
+	in_config.sense = NRF_GPIOTE_POLARITY_LOTOHI;
+	in_config.pull = NRF_GPIO_PIN_PULLUP;
+	nrf_drv_gpiote_in_init(LCD_A_SLIDER_PIN, &in_config, &LCD_SLIDER_movement_callback_extit);
+	nrf_drv_gpiote_in_event_enable(LCD_A_SLIDER_PIN, true);
 }
 
+/*
+  * @brief Fonction initialisant les LEDs de l'objet (network + battery)
+  */
 void LCD_SLIDER_leds_init(void){
 	LED_add(LED_ID_NETWORK, PIN_LED_NETWORK);
 	LED_add(LED_ID_BATTERY, PIN_LED_BATTERY);
 }
 
+/*
+  * @brief Fonction initialisant le bouton network de l'objet
+  */
 void LCD_SLIDER_buttons_init(void){
 	BUTTONS_add(BUTTON_NETWORK, PIN_BUTTON_NETWORK, TRUE, &LCD_SLIDER_short_press_button_callback_event, NULL, NULL, NULL);
 }
 
+/*
+  * @brief Cette fonction est appelee lorsque qu'un appui court est détecté sur le bouton network
+  * @pre   Il faut préalablement avoir initialisé le bouton et y avoir renseigné la fonction de callback (via BUTTONS_add())
+  */
 void LCD_SLIDER_short_press_button_callback_event(void){
 	debug_printf("Network button has been shortly pressed\n");
 	//RF_DIALOG_send_msg_id_to_object(OBJECT_BASE_STATION, PING, 0, NULL);
@@ -93,20 +119,27 @@ void LCD_SLIDER_short_press_button_callback_event(void){
 
 /************************BACKGROUND FUNCTIONS****************************/
 
+/*
+  * @brief Unique fonction publique appelée dans le main. Elle permet de lancer l'execution de la tâche de fond du module
+  */
 void LCD_SLIDER_process_main(void){
 	LCD_SLIDER_state_machine();
 };
 
+/*
+  * @brief Fonction appelée en tâche de fond. Cette machine à état gère les différents modes
+  */
 void LCD_SLIDER_state_machine(void){
 	static mode_e state  = INIT;
 	switch(state){
 	case INIT :
 		LCD_SLIDER_complete_init();
+		LCD2X16_printf("Counter : ");
 		state = RUN;
 		debug_printf("Switching to 'RUN' mode\n");
 		break;
 	case RUN :
-		LCD_SLIDER_compute_slider_value();
+		//LCD_SLIDER_compute_slider_value();
 		if(update_display){
 			LCD_SLIDER_update_display();
 			update_display = false;
@@ -127,11 +160,18 @@ void LCD_SLIDER_state_machine(void){
 	}
 };
 
+/*
+  * @brief Cette fonction met à jour l'affichage du compteur incrémenté par le slider
+  * @pre   L'écran lcd2x16 doit avoir été initialisé en amont
+  */
 void LCD_SLIDER_update_display(void){
+	LCD2X16_setCursor(0, 5);
+	LCD2X16_printf("%d\%\n", slider_display);
 
 }
 
-void LCD_SLIDER_compute_slider_value(void){
+
+/*void LCD_SLIDER_compute_slider_value(void){
 	slider_A = GPIO_read(LCD_A_SLIDER_PIN);
 	//debug_printf("Slider A %d\n", slider_A);
 	if(slider_A!=slider_A_last_state){
@@ -144,22 +184,22 @@ void LCD_SLIDER_compute_slider_value(void){
 			debug_printf("Slider -- : %d\n", slider_display);
 		}
 		slider_A_last_state = slider_A;
-		//update_display = true;
-	}
-}
-
-/*bool LCD_SLIDER_moves(void){
-	if(slider_A_output_press_event() || slider_B_output_press_event()){
-		return true;
-	}
-	else{
-		return false;
+		update_display = true;
 	}
 }*/
 
+/*
+  * @brief Cette fonction est appelée par une interruption ext dès que le slider tourne
+  */
+void LCD_SLIDER_movement_callback_extit(void){
+	debug_printf("It activated");
+	update_display = true;
+}
+
+
 /**********************************USEFUL FUNCTIONS************************************/
 /*
- * @brief Ces fonctions detectent l'utilisation du slider
+ * @brief Cette fonction détecte un appui sur le slider (switch interne)
  * @pre	  Le bouton doit etre initialise selon une broche en amont (ds le main par ex)
  * @author : Nirgal
  */
@@ -177,30 +217,6 @@ bool_e slider_switch_press_event(void)
 	previous_button = current_button;
 	return ret;
 }
-
-/*bool_e slider_A_output_press_event(void)
-{
-	static bool_e previous_button = false;
-	bool_e ret = false;
-	bool_e current_button;
-	current_button = GPIO_read(A_SLIDER_PIN);
-	if(current_button && !previous_button)
-	ret = true;
-	previous_button = current_button;
-	return ret;
-}*/
-
-/*bool_e slider_B_output_press_event(void)
-{
-	static bool_e previous_button = false;
-	bool_e ret = false;
-	bool_e current_button;
-	GPIO_read(B_SLIDER_PIN);
-	if(current_button && !previous_button)
-	ret = true;
-	previous_button = current_button;
-	return ret;
-}*/
 
 #endif
 
