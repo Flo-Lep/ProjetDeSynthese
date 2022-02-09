@@ -8,5 +8,5 @@ TARGETS          := nrf52832_xxaa
 OUTPUT_DIRECTORY := _build
 
 # My SDK root location :
-SDK_ROOT := /Users/florentinlepeltier/Downloads/Tools-nrf52/nRF5_SDK_17.0.2_d674dde
+SDK_ROOT := C:\Users\Florentin\Documents\GitHub\Tools-nrf52\nRF5_SDK_17.0.2_d674dde
 PROJ_DIR := .

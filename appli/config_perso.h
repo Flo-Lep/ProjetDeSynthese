@@ -1,0 +1,1 @@
+#define OBJECT_ID 	OBJECT_LCD_SLIDER
