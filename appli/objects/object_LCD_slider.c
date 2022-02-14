@@ -75,7 +75,7 @@ void LCD_SLIDER_complete_init(void){
 	slider_display = 0;
 	update_display = false;
 	slider_A_last_state = GPIO_read(LCD_A_SLIDER_PIN);
-	//LCD2X16_printf("LCD SLIDER - INITIALISED");
+	LCD2X16_printf("INIT COMPLETED");
 	debug_printf("Appli initialised\n");
 };
 
@@ -153,9 +153,8 @@ void LCD_SLIDER_state_machine(void){
 		debug_printf("Switching to 'RUN' mode\n");
 		break;
 	case RUN :
-		//LCD_SLIDER_compute_slider_value();
 		if(update_display){
-			//LCD_SLIDER_update_display();
+			LCD_SLIDER_update_display();
 			update_display = false;
 		}
 		break;
@@ -173,8 +172,8 @@ void LCD_SLIDER_state_machine(void){
   * @pre   L'écran lcd2x16 doit avoir été initialisé en amont
   */
 void LCD_SLIDER_update_display(void){
-	//LCD2X16_setCursor(0, 5);
-	//LCD2X16_printf("%d\%\n", slider_display);
+	LCD2X16_printf("Value : %d", slider_display);
+	//debug_printf("Value : %.2f\n", (float)(((float)slider_display/(float)254)*(float)100));
 }
 
 /**********************************CALLBACK FUNCTIONS************************************/

@@ -102,10 +102,6 @@ int main(void)
 
 	BUTTONS_add(BUTTON_NETWORK, PIN_BUTTON_NETWORK, TRUE, &button_network_process_short_press, NULL, &button_network_process_long_press, &button_network_process_5press);
 
-	//LCD test
-	GPIO_configure(BOOST_ENABLE_PIN, NRF_GPIO_PIN_PULLUP, 1);
-	GPIO_write(BOOST_ENABLE_PIN, 1);
-
     while (1)
     {
     	//Code commun à tous les objets
@@ -221,8 +217,7 @@ int main(void)
     		#endif
 
 			#if OBJECT_ID == OBJECT_LCD_SLIDER
-    			LCD2X16_demo();
-    			//LCD_SLIDER_process_main();
+    			LCD_SLIDER_process_main();
     		#endif
     }
 }
