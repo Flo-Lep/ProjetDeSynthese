@@ -75,7 +75,7 @@ void LCD_SLIDER_complete_init(void){
 	slider_display = 0;
 	update_display = false;
 	slider_A_last_state = GPIO_read(LCD_A_SLIDER_PIN);
-	LCD2X16_printf("LCD SLIDER - INITIALISED");
+	//LCD2X16_printf("LCD SLIDER - INITIALISED");
 	debug_printf("Appli initialised\n");
 };
 
@@ -83,10 +83,10 @@ void LCD_SLIDER_complete_init(void){
   * @brief Fonction initialisant le LCD sur ses broches respectives. On en profite pour activer le convertisseur Boost 5V qui alimente le LCD.
   */
 void LCD_SLIDER_lcd_init(void){
-	LCD2X16_init();
 	//Enable 5V boost converter to power on the screen
 	GPIO_configure(BOOST_ENABLE_PIN, NRF_GPIO_PIN_PULLUP, 1);
 	GPIO_write(BOOST_ENABLE_PIN, 1);
+	LCD2X16_init();
 }
 
 /*
@@ -173,8 +173,8 @@ void LCD_SLIDER_state_machine(void){
   * @pre   L'écran lcd2x16 doit avoir été initialisé en amont
   */
 void LCD_SLIDER_update_display(void){
-	LCD2X16_setCursor(0, 5);
-	LCD2X16_printf("%d\%\n", slider_display);
+	//LCD2X16_setCursor(0, 5);
+	//LCD2X16_printf("%d\%\n", slider_display);
 }
 
 /**********************************CALLBACK FUNCTIONS************************************/

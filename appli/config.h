@@ -228,7 +228,7 @@
 	#if OBJECT_ID == OBJECT_LCD_SLIDER
 		//Numeric encoder
 		#define LCD_DATA_1_PIN			31
-		#define LCD_DATA_2_PIN			30
+		#define LCD_DATA_2_PIN			9
 		#define LCD_DATA_3_PIN			29
 		#define LCD_DATA_4_PIN			28
 		#define LCD_RS_PIN				27
