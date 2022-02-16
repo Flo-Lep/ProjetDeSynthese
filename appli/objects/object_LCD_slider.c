@@ -39,9 +39,16 @@ typedef enum
 
 /************************PRIVATE VAR DEFINITIONS****************************/
 static uint8_t slider_display;
+static uint32_t sending_timer;
 static bool_e update_display;
-static volatile uint8_t slider_A; //Cette variable peut changer via une it ext (on ne prend pas de raccourci)
+static bool_e value_sent;
+static uint8_t slider_A; //Cette variable peut changer via une it ext (on ne prend pas de raccourci)
 static uint8_t slider_A_last_state;
+static bool_e FLAG_DISPLAY_SENT = false;
+static bool_e FLAG_IT_SLIDER_SWITCH = false;
+static bool_e FLAG_IT_SLIDER_A = false;
+static volatile uint32_t timer_extit_slider_switch = 0;
+static volatile uint32_t timer_extit_slider_A = 0;
 
 /*******************PRIVATE FUNCTIONS PROTOTYPES***************************/
 //init
@@ -55,12 +62,15 @@ static void LCD_SLIDER_buttons_init(void);
 static void LCD_SLIDER_state_machine(void);
 //Display
 static void LCD_SLIDER_update_display(void);
+static uint8_t LCD_SLIDER_get_slider_display_range(void);
 //Callbacks
 static void LCD_SLIDER_movement_callback_extit(void);
 static void LCD_SLIDER_short_press_button_callback_event(void);
 static void LCD_SLIDER_switch_button_pressed_callback_event(void);
 //Extit
 static void LCD_SLIDER_set_extit_callback(nrf_drv_gpiote_pin_t pin, pin_type_e pin_type, nrf_drv_gpiote_evt_handler_t callback_function);
+//Utils
+static uint16_t process_ms(void);
 
 /************************INIT FUNCTIONS****************************/
 
@@ -73,10 +83,13 @@ void LCD_SLIDER_complete_init(void){
 	LCD_SLIDER_leds_init();
 	LCD_SLIDER_buttons_init();
 	slider_display = 0;
+	sending_timer = TIMER_BETWEEN_VALUE_SENDING;
 	update_display = false;
+	value_sent = false;
 	slider_A = 0;
 	slider_A_last_state = GPIO_read(LCD_A_SLIDER_PIN);
-	LCD2X16_printf("INIT COMPLETED");
+	Systick_add_callback_function(&process_ms);
+	LCD2X16_printf("SLIDER LCD READY");
 	debug_printf("Appli initialised\n");
 };
 
@@ -173,8 +186,20 @@ void LCD_SLIDER_state_machine(void){
   * @pre   L'écran lcd2x16 doit avoir été initialisé en amont
   */
 void LCD_SLIDER_update_display(void){
-	LCD2X16_printf("Value : %d", slider_display);
-	//debug_printf("Value : %.2f\n", (float)(((float)slider_display/(float)254)*(float)100));
+	if(FLAG_DISPLAY_SENT){
+		LCD2X16_printf("SPEED : %d%% <%d>", LCD_SLIDER_get_slider_display_range(), (uint32_t)sending_timer/1000);
+		debug_printf("SENDING TIMER : %d\n", (uint32_t)sending_timer/1000);
+	}
+	else{
+		LCD2X16_printf("SPEED : %d%%", LCD_SLIDER_get_slider_display_range());
+		debug_printf("Value : %d\n", LCD_SLIDER_get_slider_display_range());
+	}
+}
+
+uint8_t LCD_SLIDER_get_slider_display_range(){
+	uint8_t ret = 0;
+	ret = (uint8_t)((slider_display/254.0)*100.0);
+	return ret;
 }
 
 /**********************************CALLBACK FUNCTIONS************************************/
@@ -184,22 +209,25 @@ void LCD_SLIDER_update_display(void){
   * @pre   Les broches du NRF sur lesquelles sont reliées les sorties A et B du slider doivent préalablement être configurées
   */
 void LCD_SLIDER_movement_callback_extit(void){
-	slider_A = GPIO_read(LCD_A_SLIDER_PIN);
-	if(slider_A!=slider_A_last_state){
-		if(GPIO_read(LCD_B_SLIDER_PIN)!=slider_A){ //ie clockwise
-			if((slider_display+1)<=254){ //Block the maximum value
-				slider_display++;
-				debug_printf("+ : %d\n", slider_display);
+	if(FLAG_IT_SLIDER_A && !value_sent){
+		slider_A = GPIO_read(LCD_A_SLIDER_PIN);
+		if(slider_A!=slider_A_last_state){
+			if(GPIO_read(LCD_B_SLIDER_PIN)!=slider_A){ //ie clockwise
+				if((slider_display+1)<=254){ //Block the maximum value
+					slider_display++;
+					debug_printf("+ : %d\n", slider_display);
+				}
 			}
-		}
-		else{ //ie counterclockwise
-			if((slider_display-1)>=0){ //Block the minimum value
-				slider_display--;
-				debug_printf("- : %d\n", slider_display);
+			else{ //ie counterclockwise
+				if((slider_display-1)>=0){ //Block the minimum value
+					slider_display--;
+					debug_printf("- : %d\n", slider_display);
+				}
 			}
+			slider_A_last_state = slider_A;
+			update_display = true;
 		}
-		slider_A_last_state = slider_A;
-		update_display = true;
+		FLAG_IT_SLIDER_A = false;
 	}
 }
 
@@ -219,11 +247,17 @@ void LCD_SLIDER_short_press_button_callback_event(void){
   */
 void LCD_SLIDER_switch_button_pressed_callback_event(void){
 	//Send slider value to the server
-	//RF_DIALOG_send_msg_id_to_object(recipient_e obj_id,msg_id_e msg_id, uint8_t datasize, uint8_t * datas);
-	//RF_DIALOG_send_msg_id_to_object(OBJECT_BASE_STATION, PING, 0, NULL);
-	//RF_DIALOG_send_msg_id_to_basestation(PARAMETER_IS, 5, slider_display); ?//tab 5 donnï¿½es
-	debug_printf("Switch button pressed\n");
-	debug_printf("Slider value : %d\n", slider_display);
+	if(FLAG_IT_SLIDER_SWITCH && !value_sent){
+		//RF_DIALOG_send_msg_id_to_object(recipient_e obj_id,msg_id_e msg_id, uint8_t datasize, uint8_t * datas);
+		//RF_DIALOG_send_msg_id_to_object(OBJECT_BASE_STATION, PING, 0, NULL);
+		//RF_DIALOG_send_msg_id_to_basestation(PARAMETER_IS, 5, slider_display); ?//tab 5 donnï¿½es
+		debug_printf("Switch button pressed\n");
+		debug_printf("Slider value : %d\n", slider_display);
+		value_sent = true;
+		FLAG_DISPLAY_SENT = true;
+		sending_timer = TIMER_BETWEEN_VALUE_SENDING;
+		FLAG_IT_SLIDER_SWITCH = false;
+	}
 }
 
 /**********************************EXTIT FUNCTIONS************************************/
@@ -245,6 +279,44 @@ void LCD_SLIDER_set_extit_callback(nrf_drv_gpiote_pin_t pin, pin_type_e pin_type
 	err_code = nrf_drv_gpiote_in_init(pin, &in_config, callback_function);
 	APP_ERROR_CHECK(err_code);
 	nrf_drv_gpiote_in_event_enable(pin, true);
+}
+
+/*****************************************UTILS***************************/
+/*
+ * @brief  Fonction qui sert de compteur pour un délai
+ * @pre	  "Systick_add_callback_function(&process_ms)" doit être appelée en amont si l'on souhaite que cette fonction soit appelee toutes les ms
+ * @info   Ce timer agit sur les interruptions externes liées au bouton switch du slider. Elle empêche que deux IT trop proches soient détectées.
+ */
+uint16_t process_ms(void){
+	//EXTIT SLIDER SWITCH
+	if(!timer_extit_slider_switch)
+	{
+		timer_extit_slider_switch = TIMER_BETWEEN_VALUE_SENDING;
+		FLAG_IT_SLIDER_SWITCH = TRUE;
+	}
+	timer_extit_slider_switch--;
+	//EXTIT SLIDER A
+	if(!timer_extit_slider_A)
+		{
+			timer_extit_slider_A = 10;
+			FLAG_IT_SLIDER_A = TRUE;
+		}
+	timer_extit_slider_A--;
+	//Timer when a value has been sent
+	if(value_sent)
+	{
+		sending_timer--;
+		if(sending_timer==1000 || sending_timer==2000 || sending_timer==3000 || sending_timer==4000 || sending_timer==5000) //Display the timer each second
+			update_display = true;
+		if(!sending_timer)
+		{
+			value_sent = false;
+			FLAG_DISPLAY_SENT = false;
+			update_display = true;
+		}
+	}
+
+	return 0;
 }
 
 #endif
