@@ -2,7 +2,7 @@
 /*
  * object_LCD_slider.c
  *
- *  Created on: janv-feb 2022
+ *  Created on: janv to feb 2022
  *      Author: Florentin LEPELTIER
  */
 
@@ -15,8 +15,8 @@
   	ENCODER : The slider is composed of three signals coming back on 3 pins of the NRF : Output_A(P0.12) / Output_B(P0.11) / Switch_output(P0.10)
   		-When the slider is turned clockwise, A!=B
   		-When it turns counterclockwise, A==B
-  		-When the switch is pressed, the output pin goes from high to low
-  	LCD : The LCD is wired on the following pins : Enable(P0.25) / RW(P0.26) / RS(P0.27) / D7(P0.28) / D6(P0.29) / D5(P0.30) / D4(P0.31)
+  		-When the switch is pressed, the output pin goes from high to low (according to the pulling configuration you set)
+  	LCD : The LCD is wired on the following pins : Enable(P0.25) / RW(P0.26) / RS(P0.27) / D7(P0.28) / D6(P0.29) / D5(P0.30) --> Updated to 9 / D4(P0.31)
   	INFO : Pins are defined in the config.h file.
 */
 
@@ -74,6 +74,7 @@ void LCD_SLIDER_complete_init(void){
 	LCD_SLIDER_buttons_init();
 	slider_display = 0;
 	update_display = false;
+	slider_A = 0;
 	slider_A_last_state = GPIO_read(LCD_A_SLIDER_PIN);
 	LCD2X16_printf("INIT COMPLETED");
 	debug_printf("Appli initialised\n");

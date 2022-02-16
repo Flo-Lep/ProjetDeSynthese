@@ -5,6 +5,8 @@
  * @INFOS IMPORTANTES :
  * Les pins de commande doivent être en pulldown de préférence (elles servent à set des configurations spécifiques à l'écran --> Cf datasheet...)
  * ATTENTION : /!\ Même non utilisées, les pins de data D0-D3 doivent être reliées au GND, sans quoi l'écran sera incapable de'interprêter certaines commandes...
+ * Certaines fonctions ont été reprises ici mais ne fonctionnement pas correctement...Il serait nécessaire de revoir le driver afin de l'adapter entièrement et non à moitié.
+ * Toutes les fonctions developpées ici prennent en compte l'utilisation de l'écran uniquement en mode 4 bits.
  * Pour plus d'informatiins, il est nécessaire de lire et de comprendre la datasheet
  */
 #include "../appli/config.h"
