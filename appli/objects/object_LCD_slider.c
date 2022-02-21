@@ -25,6 +25,8 @@
 #include "../common/gpio.h"
 #include "../common/buttons.h"
 #include "../common/leds.h"
+#include "../common/parameters.h"
+#include "../common/systick.h"
 #include "../bsp/lcd2x16/lcd2x16.h"
 #include "object_LCD_slider.h"
 #include "nrf_drv_gpiote.h"
@@ -58,6 +60,7 @@ static void LCD_SLIDER_encoder_init(void);
 static void LCD_SLIDER_extit_init(void);
 static void LCD_SLIDER_leds_init(void);
 static void LCD_SLIDER_buttons_init(void);
+static void LCD_SLIDER_parameters_init(void);
 //Background
 static void LCD_SLIDER_state_machine(void);
 //Display
@@ -67,6 +70,7 @@ static uint8_t LCD_SLIDER_get_slider_display_range(void);
 static void LCD_SLIDER_movement_callback_extit(void);
 static void LCD_SLIDER_short_press_button_callback_event(void);
 static void LCD_SLIDER_switch_button_pressed_callback_event(void);
+static void LCD_SLIDER_parameter_read_callback_event(void);
 //Extit
 static void LCD_SLIDER_set_extit_callback(nrf_drv_gpiote_pin_t pin, pin_type_e pin_type, nrf_drv_gpiote_evt_handler_t callback_function);
 //Utils
@@ -82,6 +86,7 @@ void LCD_SLIDER_complete_init(void){
 	LCD_SLIDER_encoder_init();
 	LCD_SLIDER_leds_init();
 	LCD_SLIDER_buttons_init();
+	LCD_SLIDER_parameters_init();
 	slider_display = 0;
 	sending_timer = TIMER_BETWEEN_VALUE_SENDING;
 	update_display = false;
@@ -146,6 +151,10 @@ void LCD_SLIDER_buttons_init(void){
 	BUTTONS_add(BUTTON_NETWORK, PIN_BUTTON_NETWORK, TRUE, &LCD_SLIDER_short_press_button_callback_event, NULL, NULL, NULL);
 }
 
+void LCD_SLIDER_parameters_init(void){
+	PARAMETERS_enable(PARAM_SENSOR_VALUE, 0, 0, NULL, &LCD_SLIDER_parameter_read_callback_event);
+}
+
 /************************BACKGROUND FUNCTIONS****************************/
 
 /*
@@ -196,7 +205,7 @@ void LCD_SLIDER_update_display(void){
 	}
 }
 
-uint8_t LCD_SLIDER_get_slider_display_range(){
+uint8_t LCD_SLIDER_get_slider_display_range(void){
 	uint8_t ret = 0;
 	ret = (uint8_t)((slider_display/254.0)*100.0);
 	return ret;
@@ -253,11 +262,19 @@ void LCD_SLIDER_switch_button_pressed_callback_event(void){
 		//RF_DIALOG_send_msg_id_to_basestation(PARAMETER_IS, 5, slider_display); ?//tab 5 donnï¿½es
 		debug_printf("Switch button pressed\n");
 		debug_printf("Slider value : %d\n", slider_display);
+		PARAMETERS_update(PARAM_SENSOR_VALUE, LCD_SLIDER_get_slider_display_range());
 		value_sent = true;
 		FLAG_DISPLAY_SENT = true;
 		sending_timer = TIMER_BETWEEN_VALUE_SENDING;
 		FLAG_IT_SLIDER_SWITCH = false;
 	}
+}
+
+/*
+  * @brief Cette fonction est appelée lorsque qu'une lecture d'un parametre est effectuee ou demandee par la RF
+  */
+void LCD_SLIDER_parameter_read_callback_event(void){
+	debug_printf("Slider value parameter has been read");
 }
 
 /**********************************EXTIT FUNCTIONS************************************/
